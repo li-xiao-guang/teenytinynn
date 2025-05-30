@@ -10,8 +10,7 @@ def forward(x, w, b):
 feature = np.array([28.1, 58.0])
 
 # model
-weight = np.ones((1, feature.shape[-1]))
-bias = np.zeros(1)
+weight, bias = np.ones((1, feature.shape[-1])), np.zeros(1)
 
 # prediction
 prediction = forward(feature, weight, bias)
