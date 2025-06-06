@@ -48,4 +48,23 @@ weight, bias = np.ones((1, feature.shape[-1])), np.zeros(1)
 
 这样我们就创建了对应两个输入（列）和一个输出（行）的权重数组，缺省值设为1；以及对应一个输出的偏置数组，缺省值设为0。
 
+### 神经元逻辑
+
+单个人工神经元的计算逻辑非常简单，就是一个线性回归函数：
+
+```python
+forward = (x) -> x.dot(weight.T) + bias
+```
+
+### 模型推理
+
+
+将我们得到的输入数据代入到神经元逻辑中，就完成了第一次的模型推理过程：
+
+```python
+prediction = forward(feature)
+```
+
+
+
 
