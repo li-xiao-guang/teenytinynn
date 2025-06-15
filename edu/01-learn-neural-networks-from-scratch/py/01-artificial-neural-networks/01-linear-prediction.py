@@ -1,18 +1,15 @@
 import numpy as np
 
-
-# neuron definition
-def forward(x, w, b):
-    return x.dot(w.T) + b
-
-
 # dataset
 feature = np.array([28.1, 58.0])
 
 # model
-weight, bias = np.ones((1, feature.shape[-1])), np.zeros(1)
+weight, bias = np.array([1.0, 1.0]), np.array([0.0])
 
-# prediction
-prediction = forward(feature, weight, bias)
+# neuron
+forward = lambda x: x.dot(weight.T) + bias
+
+# predict
+prediction = forward(feature)
 
 print(f'Prediction: {prediction}')
