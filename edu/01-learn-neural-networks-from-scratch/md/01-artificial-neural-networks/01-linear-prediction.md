@@ -58,7 +58,7 @@ $$y = w_1x_1 + w_2x_2 + \dots + w_nx_n + b$$
 %%{init: { "themeVariables": { "fontSize": "14px" } } }%%
 graph LR
     subgraph 人工神经元
-      m1(("×")) --> w1[权重 1] --> p(("+")) --> b
+      m1(("×")) --> w1[权重 1] --> p(("\+")) --> b
       m2(("×")) --> w2[权重 2] --> p
     end
     x1[输入数据 1] -.-> m1
