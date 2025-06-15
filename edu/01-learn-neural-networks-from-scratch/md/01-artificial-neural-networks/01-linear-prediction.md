@@ -46,6 +46,8 @@ graph LR
 
 ### 人工神经元
 
+> 每个人工神经元就是一个多元一次函数。
+
 最简单的人工神经元网络只包含一个人工神经元。这个神经元使用不同的权重（weight）和偏置（bias），对输入数据（features）进行加权组合（强化一些数据，削弱另一些数据），最终输出一个线性回归的结果（prediction）。其数学公式为：
 
 $$y = w_1x_1 + w_2x_2 + \dots + w_nx_n + b$$
@@ -101,41 +103,41 @@ weight, bias = np.array([1, 1]), np.array([0])
 
 ### 神经元逻辑
 
-单个人工神经元的计算逻辑非常简单，就是一个线性回归函数：
+单个人工神经元的计算逻辑非常简单，就是一个线性回归（多元一次）函数：
 
 ```python
-forward = lambda x: x.dot(weight.T) + bias
+def forward(x, w, b):
+    return x.dot(w.T) + b
 ```
 
-这里我们使用了Python的匿名函数（lambda），和numpy的矩阵点积（dot()）和转置（T）的技巧。
+这里我们使用了numpy的矩阵点积（dot()）和转置（T）的技巧，来一次性计算出多个输入数据和权重的乘积的和。
 
 ### 模型推理
 
-将我们得到的输入数据代入到神经元逻辑中，就完成了第一次的模型推理过程：
+将输入数据，权重和偏置代入到神经元逻辑函数中，我们就完成了第一次的模型推理过程：
 
 ```python
-prediction = forward(feature)
+prediction = forward(feature, weight, bias)
 ```
 
 ### 完整代码
 
-上面的4行代码，就可以实现一个最简单的人工神经元网络。为了让代码有效运行，我们还要加上库引用和结果输出。
+上面的几行代码，就实现了一个最简单的人工神经元网络。为了让代码有效运行，我们还要加上库引用和结果输出的部分。
 
 ```python
 import numpy as np
 
 # 输入数据
 feature = np.array([28.1, 58.0])
-
 # 模型参数（权重和偏置）
 weight, bias = np.array([1, 1]), np.array([0])
 
 # 神经元逻辑
-forward = lambda x: x.dot(weight.T) + bias
+def forward(x, w, b):
+    return x.dot(w.T) + b
 
 # 模型推理
-prediction = forward(feature)
-
+prediction = forward(feature, weight, bias)
 # 结果输出
 print(f'预测冰淇淋销量：{prediction}')
 ```
