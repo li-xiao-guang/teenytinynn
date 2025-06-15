@@ -6,7 +6,7 @@ feature = np.array([28.1, 58.0])
 weight, bias = np.array([1, 1]), np.array([0])
 
 
-# 神经元逻辑
+# 神经元逻辑（多元一次函数）
 def forward(x, w, b):
     return x.dot(w.T) + b
 
