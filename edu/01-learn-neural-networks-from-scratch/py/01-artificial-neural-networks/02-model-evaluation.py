@@ -13,7 +13,7 @@ def forward(x, w, b):
     return x.dot(w.T) + b
 
 
-# 损失函数（平均平方差）
+# 损失函数（均方差）
 def mse_loss(p, y):
     return ((p - y) ** 2).mean()
 
