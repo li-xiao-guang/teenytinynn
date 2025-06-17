@@ -2,90 +2,89 @@ import numpy as np
 
 np.random.seed(99)
 
-
-# neuron definition
-def forward(x, w, b):
-    return x.dot(w.T) + b
-
-
-def backward(x, d, w, b, lr):
-    return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
-
-
-# loss function
-def mse_loss(p, y):
-    return ((p - y) ** 2).mean()
-
-
-# gradient descent
-def gradient(p, y):
-    return (p - y) * 2 / len(y)
-
-
-def gradient_backward(d, w):
-    return d.dot(w)
-
-
-# activation function
-def relu(x):
-    return np.maximum(0, x)
-
-
-def relu_backward(y, d):
-    return (y > 0) * d
-
-
-# dataset
+# 输入数据
 features = np.array([[28.1, 58.0],
                      [22.5, 72.0],
                      [31.4, 45.0],
                      [19.8, 85.0],
                      [27.6, 63]])
+# 实际结果
 labels = np.array([[165],
                    [95],
                    [210],
                    [70],
                    [155]])
+# 模型参数（隐藏层权重和偏置）
+h_weight, h_bias = np.random.rand(4, 2) / 2, np.zeros(4)
+# 模型参数（输出层权重和偏置）
+o_weight, o_bias = np.random.rand(1, 4) / 4, np.zeros(1)
 
-# hyperparameters
+
+# 神经元逻辑（线性回归（多元一次）函数）
+def forward(x, w, b):
+    return x.dot(w.T) + b
+
+
+# 激活函数
+def relu(x):
+    return np.maximum(0, x)
+
+
+# 损失函数（均方差）
+def mse_loss(p, y):
+    return ((p - y) ** 2).mean()
+
+
+# 梯度计算（损失函数的微分）
+def gradient(p, y):
+    return (p - y) * 2 / len(y)
+
+
+# 梯度反向传播
+def gradient_backward(d, w):
+    return d.dot(w)
+
+
+# 激活函数反向传播
+def relu_backward(y, d):
+    return (y > 0) * d
+
+
+# 反向传播
+def backward(x, d, w, b, lr):
+    return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
+
+
+# 学习率
 LEARNING_RATE = 0.00001
+# 训练周期
 EPOCHES = 1000
+# 训练批次
 BATCHES = 2
 
-# model
-h_weight = np.random.rand(4, features.shape[-1]) / features.shape[-1]
-h_bias = np.zeros(4)
-
-o_weight = np.random.rand(labels.shape[-1], 4) / 4
-o_bias = np.zeros(labels.shape[-1])
-
-# epoch
+# 周期
 for epoch in range(EPOCHES):
-    # iteration
+    # 迭代
     for i in range(0, len(features), BATCHES):
-        feature = features[i: i + BATCHES]
-        label = labels[i: i + BATCHES]
+        feature, label = features[i: i + BATCHES], labels[i: i + BATCHES]
 
-        # prediction
+        # 模型推理
         hidden = relu(forward(feature, h_weight, h_bias))
         prediction = forward(hidden, o_weight, o_bias)
-
-        # evaluation
+        # 模型验证
         error = mse_loss(prediction, label)
-
-        # gradient computation
+        # 梯度计算
         o_delta = gradient(prediction, label)
         h_delta = relu_backward(hidden, gradient_backward(o_delta, o_weight))
-
-        # parameter updates
+        # 反向传播
         o_weight, o_bias = backward(hidden, o_delta, o_weight, o_bias, LEARNING_RATE)
         h_weight, h_bias = backward(feature, h_delta, h_weight, h_bias, LEARNING_RATE)
 
-    print(f"Epoch: {epoch}")
-    print(f'Prediction: {prediction}')
-    print(f'Error: {error}')
-    print(f"Hidden weight: {h_weight}")
-    print(f"Hidden bias: {h_bias}")
-    print(f"Output weight: {o_weight}")
-    print(f"Output bias: {o_bias}")
-
+    # 结果输出
+    print(f"训练周期：{epoch}")
+    print(f'预测冰淇淋销量：{prediction}')
+    print(f'均方差：{error}')
+    print(f"隐藏层权重：{h_weight}")
+    print(f"隐藏层偏置：{h_bias}")
+    print(f"输出层权重：{o_weight}")
+    print(f"输出层偏置：{o_bias}")
