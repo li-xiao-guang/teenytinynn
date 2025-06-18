@@ -4,6 +4,7 @@ import numpy as np
 feature = np.array([28.1, 58.0])
 # 实际结果
 label = np.array([165])
+
 # 模型参数（权重和偏置）
 weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 

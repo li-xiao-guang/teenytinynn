@@ -14,15 +14,22 @@ labels = np.array([[165],
                    [210],
                    [70],
                    [155]])
+
 # 模型参数（隐藏层权重和偏置）
+# 隐藏层
 h_weight, h_bias = np.random.rand(4, 2) / 2, np.zeros(4)
-# 模型参数（输出层权重和偏置）
+# 输出层
 o_weight, o_bias = np.random.rand(1, 4) / 4, np.zeros(1)
 
 
 # 神经元逻辑（线性回归（多元一次）函数）
 def forward(x, w, b):
     return x.dot(w.T) + b
+
+
+# 反向传播
+def backward(x, d, w, b, lr):
+    return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
 
 
 # 损失函数（均方差）
@@ -40,22 +47,18 @@ def gradient_backward(d, w):
     return d.dot(w)
 
 
-# 反向传播
-def backward(x, d, w, b, lr):
-    return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
-
-
 # 学习率
 LEARNING_RATE = 0.00001
-# 训练周期
+# 轮次
 EPOCHES = 1000
-# 训练批次
+# 批次
 BATCHES = 2
 
-# 周期
+# 轮次
 for epoch in range(EPOCHES):
     # 迭代
     for i in range(0, len(features), BATCHES):
+        # 批次
         feature, label = features[i: i + BATCHES], labels[i: i + BATCHES]
 
         # 模型推理

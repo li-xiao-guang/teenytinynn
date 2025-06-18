@@ -12,6 +12,7 @@ labels = np.array([[165],
                    [210],
                    [70],
                    [155]])
+
 # 模型参数（权重和偏置）
 weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 
@@ -19,6 +20,11 @@ weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 # 神经元逻辑（线性回归（多元一次）函数）
 def forward(x, w, b):
     return x.dot(w.T) + b
+
+
+# 反向传播
+def backward(x, d, w, b, lr):
+    return w - d * x * lr, b - np.sum(d, axis=0) * lr
 
 
 # 损失函数（均方差）
@@ -31,17 +37,12 @@ def gradient(p, y):
     return (p - y) * 2 / len(y)
 
 
-# 反向传播
-def backward(x, d, w, b, lr):
-    return w - d * x * lr, b - np.sum(d, axis=0) * lr
-
-
 # 学习率
 LEARNING_RATE = 0.00001
-# 训练周期
+# 轮次
 EPOCHES = 1000
 
-# 周期
+# 轮次
 for epoch in range(EPOCHES):
     # 迭代
     for i in range(len(features)):

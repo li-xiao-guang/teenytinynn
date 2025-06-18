@@ -12,6 +12,7 @@ labels = np.array([[165],
                    [210],
                    [70],
                    [155]])
+
 # 模型参数（权重和偏置）
 weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 
