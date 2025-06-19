@@ -27,7 +27,7 @@ def backward(x, d, w, b, lr):
     return w - d * x * lr, b - np.sum(d) * lr
 
 
-# 损失函数（均方差）
+# 损失函数（均方误差）
 def mse_loss(p, y):
     return ((p - y) ** 2).mean()
 
@@ -54,6 +54,6 @@ for i in range(len(features)):
     weight, bias = backward(feature, delta, weight, bias, LEARNING_RATE)
     # 结果输出
     print(f'预测冰淇淋销量：{prediction}')
-    print(f'均方差：{error}')
+    print(f'均方误差：{error}')
     print(f"权重：{weight}")
     print(f"偏置：{bias}")

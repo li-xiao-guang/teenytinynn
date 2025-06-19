@@ -14,7 +14,7 @@ def forward(x, w, b):
     return x.dot(w.T) + b
 
 
-# 损失函数（均方差）
+# 损失函数（均方误差）
 def mse_loss(p, y):
     return ((p - y) ** 2).mean()
 
@@ -25,4 +25,4 @@ prediction = forward(feature, weight, bias)
 error = mse_loss(prediction, label)
 # 结果输出
 print(f'预测冰淇淋销量：{prediction}')
-print(f'均方差：{error}')
+print(f'均方误差：{error}')

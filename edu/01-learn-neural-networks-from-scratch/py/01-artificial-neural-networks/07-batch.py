@@ -27,14 +27,14 @@ def backward(x, d, w, b, lr):
     return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
 
 
-# 损失函数（均方差）
+# 损失函数（均方误差）
 def mse_loss(p, y):
-    return ((p - y) ** 2).mean()
+    return ((p - y) ** 2).mean(axis=0)
 
 
 # 梯度计算（损失函数的导数）
 def gradient(p, y):
-    return (p - y) * 2 / len(y)
+    return (p - y) * 2
 
 
 # 学习率
@@ -63,6 +63,6 @@ for epoch in range(EPOCHES):
     # 结果输出
     print(f"训练周期：{epoch}")
     print(f'预测冰淇淋销量：{prediction}')
-    print(f'均方差：{error}')
+    print(f'均方误差：{error}')
     print(f"权重：{weight}")
     print(f"偏置：{bias}")
