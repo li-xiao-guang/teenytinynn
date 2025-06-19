@@ -23,8 +23,8 @@ def forward(x, w, b):
 
 
 # 反向传播
-def backward(x, d, w, b, lr):
-    return w - d * x * lr, b - np.sum(d) * lr
+def backward(x, d, w, b):
+    return w - d * x, b - np.sum(d)
 
 
 # 损失函数（均方误差）
@@ -37,9 +37,6 @@ def gradient(p, y):
     return (p - y) * 2
 
 
-# 学习率
-LEARNING_RATE = 0.00001
-
 # 迭代
 for i in range(len(features)):
     feature, label = features[i], labels[i]
@@ -51,7 +48,7 @@ for i in range(len(features)):
     # 梯度计算
     delta = gradient(prediction, label)
     # 反向传播
-    weight, bias = backward(feature, delta, weight, bias, LEARNING_RATE)
+    weight, bias = backward(feature, delta, weight, bias)
     # 结果输出
     print(f'预测冰淇淋销量：{prediction}')
     print(f'均方误差：{error}')
