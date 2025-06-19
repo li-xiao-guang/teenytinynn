@@ -24,7 +24,7 @@ def forward(x, w, b):
 
 # 反向传播
 def backward(x, d, w, b, lr):
-    return w - d * x * lr, b - np.sum(d, axis=0) * lr
+    return w - d * x * lr, b - np.sum(d) * lr
 
 
 # 损失函数（均方差）
@@ -32,9 +32,9 @@ def mse_loss(p, y):
     return ((p - y) ** 2).mean()
 
 
-# 梯度计算（损失函数的微分）
+# 梯度计算（损失函数的导数）
 def gradient(p, y):
-    return (p - y) * 2 / len(y)
+    return (p - y) * 2
 
 
 # 学习率

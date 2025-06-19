@@ -47,7 +47,7 @@ def mse_loss(p, y):
     return ((p - y) ** 2).mean()
 
 
-# 梯度计算（损失函数的微分）
+# 梯度计算（损失函数的导数）
 def gradient(p, y):
     return (p - y) * 2 / len(y)
 
