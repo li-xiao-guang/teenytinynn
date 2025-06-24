@@ -9,7 +9,7 @@ label = np.array([165])
 weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 
 
-# 前向传播
+# 前向传播函数
 def forward(x, w, b):
     return x.dot(w.T) + b
 
@@ -23,6 +23,7 @@ def mse_loss(p, y):
 prediction = forward(feature, weight, bias)
 # 模型验证
 error = mse_loss(prediction, label)
+
 # 结果输出
 print(f'预测冰淇淋销量：{prediction}')
 print(f'均方误差：{error}')

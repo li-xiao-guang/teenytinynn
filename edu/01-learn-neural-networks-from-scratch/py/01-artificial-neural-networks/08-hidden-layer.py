@@ -22,12 +22,12 @@ h_weight, h_bias = np.random.rand(4, 2) / 2, np.zeros(4)
 o_weight, o_bias = np.random.rand(1, 4) / 4, np.zeros(1)
 
 
-# 神经元逻辑（线性回归（多元一次）函数）
+# 前向传播函数
 def forward(x, w, b):
     return x.dot(w.T) + b
 
 
-# 反向传播
+# 反向传播函数
 def backward(x, d, w, b, lr):
     return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
 
@@ -37,7 +37,7 @@ def mse_loss(p, y):
     return ((p - y) ** 2).mean(axis=0)
 
 
-# 梯度计算（损失函数的导数）
+# 梯度计算函数（损失函数的导数）
 def gradient(p, y):
     return (p - y) * 2
 
@@ -57,6 +57,7 @@ BATCHES = 2
 # 轮次
 for epoch in range(EPOCHES):
     # 迭代
+    error = 0
     for i in range(0, len(features), BATCHES):
         # 批次
         feature, label = features[i: i + BATCHES], labels[i: i + BATCHES]
@@ -65,7 +66,7 @@ for epoch in range(EPOCHES):
         hidden = forward(feature, h_weight, h_bias)
         prediction = forward(hidden, o_weight, o_bias)
         # 模型验证
-        error = mse_loss(prediction, label)
+        error += mse_loss(prediction, label) * len(feature)
         # 梯度计算
         o_delta = gradient(prediction, label)
         h_delta = gradient_backward(o_delta, o_weight)
@@ -76,7 +77,7 @@ for epoch in range(EPOCHES):
     # 结果输出
     print(f"训练周期：{epoch}")
     print(f'预测冰淇淋销量：{prediction}')
-    print(f'均方误差：{error}')
+    print(f'均方误差：{error / len(features)}')
     print(f"隐藏层权重：{h_weight}")
     print(f"隐藏层偏置：{h_bias}")
     print(f"输出层权重：{o_weight}")
