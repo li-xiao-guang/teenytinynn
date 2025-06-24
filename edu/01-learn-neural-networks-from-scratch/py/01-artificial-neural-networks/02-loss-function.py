@@ -9,7 +9,7 @@ label = np.array([165])
 weight, bias = np.array([[1, 1]]) / 2, np.array([0])
 
 
-# 神经元逻辑（线性回归（多元一次）函数）
+# 前向传播
 def forward(x, w, b):
     return x.dot(w.T) + b
 
