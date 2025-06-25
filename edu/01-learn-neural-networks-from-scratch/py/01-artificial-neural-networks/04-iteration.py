@@ -38,21 +38,20 @@ def gradient(p, y):
 
 
 # 迭代
-error = 0
 for i in range(len(features)):
     feature, label = features[i], labels[i]
 
     # 模型推理
     prediction = forward(feature, weight, bias)
     # 模型验证
-    error += mse_loss(prediction, label)
+    error = mse_loss(prediction, label)
     # 梯度计算
     delta = gradient(prediction, label)
     # 反向传播
     weight, bias = backward(feature, delta, weight, bias)
 
-# 结果输出
-print(f'预测冰淇淋销量：{prediction}')
-print(f'均方误差：{error / len(features)}')
-print(f"权重：{weight}")
-print(f"偏置：{bias}")
+    # 结果输出
+    print(f'预测冰淇淋销量：{prediction}')
+    print(f'均方误差：{error / len(features)}')
+    print(f"权重：{weight}")
+    print(f"偏置：{bias}")
