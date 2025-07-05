@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -11,8 +11,11 @@ class DataLoader:
         self.batch_size = batch_size
 
         with (np.load('mini-mnist.npz', allow_pickle=True) as f):
-            self.features, self.labels = self.normalize(f['x_train'], f['y_train'])
-            self.observations, self.actuals = self.normalize(f['x_test'], f['y_test'])
+            self.x_train, self.y_train = self.normalize(f['x_train'], f['y_train'])
+            self.x_test, self.y_test = self.normalize(f['x_test'], f['y_test'])
+
+        self.features = self.x_train
+        self.labels = self.y_train
 
     @staticmethod
     def normalize(x, y):
@@ -20,6 +23,14 @@ class DataLoader:
         targets = np.zeros((len(y), 10))
         targets[range(len(y)), y] = 1
         return inputs, targets
+
+    def train(self):
+        self.features = self.x_train
+        self.labels = self.y_train
+
+    def eval(self):
+        self.features = self.x_test
+        self.labels = self.y_test
 
     def size(self):
         return len(self.features)
@@ -134,6 +145,7 @@ class Convolution2D(Layer):
         self.channel_size = channel_size
         self.kernel_size = kernel_size
         self.out_size = out_size
+
         in_size = kernel_size ** 2 * channel_size
         self.weight = Tensor(np.random.rand(out_size, in_size) / in_size)
         self.bias = Tensor(np.zeros(out_size))
@@ -176,20 +188,20 @@ class Pool2D(Layer):
         self.kernel_size = kernel_size
 
     def forward(self, x: Tensor):
-        batch, channel, row, column, patch = x.data.shape
-        pooled_row = row // self.kernel_size
-        pooled_column = column // self.kernel_size
+        batches, channels, rows, columns, patches = x.data.shape
+        pooled_rows = rows // self.kernel_size
+        pooled_columns = columns // self.kernel_size
 
         masks = np.zeros_like(x.data, dtype=bool)
-        pools = np.zeros((batch, channel, pooled_row, pooled_column, patch))
-        for r in range(pooled_row):
-            for l in range(pooled_column):
+        pools = np.zeros((batches, channels, pooled_rows, pooled_columns, patches))
+        for r in range(pooled_rows):
+            for l in range(pooled_columns):
                 row_slice = slice(r * self.kernel_size, (r + 1) * self.kernel_size)
                 column_slice = slice(l * self.kernel_size, (l + 1) * self.kernel_size)
-                region = x.data[:, :, row_slice, column_slice, :]
-                max_region = region.max(axis=(2, 3), keepdims=True)
+                regions = x.data[:, :, row_slice, column_slice, :]
+                max_region = regions.max(axis=(2, 3), keepdims=True)
                 pools[:, :, r, l, :] = max_region.squeeze(axis=(2, 3))
-                mask = region == max_region
+                mask = regions == max_region
                 masks[:, :, row_slice, column_slice, :] += mask
 
         p = Tensor(pools)
@@ -364,7 +376,9 @@ for epoch in range(EPOCHES):
     print(f"output weight: {model.layers[6].weight.data}")
     print(f"output bias: {model.layers[6].bias.data}")
 
+dataset.eval()
 model.eval()
-prediction = model(Tensor(dataset.observations))
-result = (prediction.data.argmax(axis=1) == dataset.actuals.argmax(axis=1)).sum()
-print(f'Result: {result} of {len(dataset.observations)}')
+
+prediction = model(Tensor(dataset.features))
+result = (prediction.data.argmax(axis=1) == dataset.labels.argmax(axis=1)).sum()
+print(f'Result: {result} of {len(dataset.features)}')

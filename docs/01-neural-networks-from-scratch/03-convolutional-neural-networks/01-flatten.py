@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -11,8 +11,11 @@ class DataLoader:
         self.batch_size = batch_size
 
         with (np.load('mini-mnist.npz', allow_pickle=True) as f):
-            self.features, self.labels = self.normalize(f['x_train'], f['y_train'])
-            self.observations, self.actuals = self.normalize(f['x_test'], f['y_test'])
+            self.x_train, self.y_train = self.normalize(f['x_train'], f['y_train'])
+            self.x_test, self.y_test = self.normalize(f['x_test'], f['y_test'])
+
+        self.features = self.x_train
+        self.labels = self.y_train
 
     @staticmethod
     def normalize(x, y):
@@ -20,6 +23,14 @@ class DataLoader:
         targets = np.zeros((len(y), 10))
         targets[range(len(y)), y] = 1
         return inputs, targets
+
+    def train(self):
+        self.features = self.x_train
+        self.labels = self.y_train
+
+    def eval(self):
+        self.features = self.x_test
+        self.labels = self.y_test
 
     def size(self):
         return len(self.features)
@@ -184,6 +195,8 @@ for epoch in range(EPOCHES):
     print(f"output weight: {model.layers[2].weight.data}")
     print(f"output bias: {model.layers[2].bias.data}")
 
-prediction = model(Tensor(dataset.observations))
-result = (prediction.data.argmax(axis=1) == dataset.actuals.argmax(axis=1)).sum()
-print(f'Result: {result} of {len(dataset.observations)}')
+dataset.eval()
+
+prediction = model(Tensor(dataset.features))
+result = (prediction.data.argmax(axis=1) == dataset.labels.argmax(axis=1)).sum()
+print(f'Result: {result} of {len(dataset.features)}')

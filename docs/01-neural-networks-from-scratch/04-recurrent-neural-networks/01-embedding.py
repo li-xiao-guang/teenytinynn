@@ -1,4 +1,7 @@
+import csv
+import re
 from abc import ABC, abstractmethod
+from collections import Counter
 
 import numpy as np
 
@@ -7,39 +10,53 @@ np.random.seed(99)
 
 class DataLoader:
 
-    def __init__(self, batch_size):
-        self.batch_size = batch_size
+    def __init__(self, min_frequency=3):
+        self.min_frequency = min_frequency
 
-        with (np.load('mini-mnist.npz', allow_pickle=True) as f):
-            self.x_train, self.y_train = self.normalize(f['x_train'], f['y_train'])
-            self.x_test, self.y_test = self.normalize(f['x_test'], f['y_test'])
+        self.reviews = []
+        self.sentiments = []
+        with open('reviews.csv', 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            next(reader)
+            for _, row in enumerate(reader):
+                self.reviews.append(row[0])
+                self.sentiments.append(row[1])
 
-        self.features = self.x_train
-        self.labels = self.y_train
+        split_reviews = []
+        for r in self.reviews:
+            split_reviews.append(self.clean_text(r.lower()).split())
+
+        counter = Counter([w for r in split_reviews for w in r])
+        self.vocabulary = set([w for w, c in counter.items() if c >= self.min_frequency])
+        self.word2index = {w: idx for idx, w in enumerate(self.vocabulary)}
+        self.index2word = {idx: w for idx, w in enumerate(self.vocabulary)}
+        self.tokens = [[self.word2index[w] for w in r if w in self.word2index] for r in split_reviews]
+
+        self.features = [list(set(idx)) for idx in self.tokens[:-10]]
+        self.labels = [0 if idx == "negative" else 1 for idx in self.sentiments[:-10]]
 
     @staticmethod
-    def normalize(x, y):
-        inputs = np.expand_dims(x / 255, axis=1)
-        targets = np.zeros((len(y), 10))
-        targets[range(len(y)), y] = 1
-        return inputs, targets
+    def clean_text(text):
+        txt = re.sub(r'<[^>]+>', '', text)
+        txt = re.sub(r'[^a-zA-Z0-9\s]', '', txt)
+        return txt
 
     def train(self):
-        self.features = self.x_train
-        self.labels = self.y_train
+        self.features = [list(set(idx)) for idx in self.tokens[:-10]]
+        self.labels = [0 if idx == "negative" else 1 for idx in self.sentiments[:-10]]
 
     def eval(self):
-        self.features = self.x_test
-        self.labels = self.y_test
+        self.features = [list(set(idx)) for idx in self.tokens[-10:]]
+        self.labels = [0 if idx == "negative" else 1 for idx in self.sentiments[-10:]]
 
     def size(self):
         return len(self.features)
 
     def feature(self, index):
-        return Tensor(self.features[index: index + self.batch_size])
+        return Tensor(self.features[index: index + 1])
 
     def label(self, index):
-        return Tensor(self.labels[index: index + self.batch_size])
+        return Tensor(self.labels[index: index + 1])
 
 
 class Tensor:
@@ -138,81 +155,30 @@ class Linear(Layer):
         return [self.weight, self.bias]
 
 
-class Convolution2D(Layer):
+class Embedding(Layer):
 
-    def __init__(self, channel_size, kernel_size, out_size):
+    def __init__(self, vocabulary_size, embedding_size, axis=1):
         super().__init__()
-        self.channel_size = channel_size
-        self.kernel_size = kernel_size
-        self.out_size = out_size
+        self.vocabulary_size = vocabulary_size
+        self.embedding_size = embedding_size
+        self.axis = axis
 
-        in_size = kernel_size ** 2 * channel_size
-        self.weight = Tensor(np.random.rand(out_size, in_size) / in_size)
-        self.bias = Tensor(np.zeros(out_size))
+        self.weight = Tensor(np.random.rand(embedding_size, vocabulary_size) / vocabulary_size)
 
     def forward(self, x: Tensor):
-        batches, channels, rows, columns = x.data.shape
-        rows = rows - self.kernel_size + 1
-        columns = columns - self.kernel_size + 1
-
-        patches = []
-        for b in range(batches):
-            for c in range(channels):
-                for r in range(rows):
-                    for l in range(columns):
-                        patch = x.data[b,
-                                c:c + self.channel_size,
-                                r:r + self.kernel_size,
-                                l:l + self.kernel_size]
-                        patches.append(patch)
-        patches = np.array(patches).reshape(batches, channels, rows, columns, -1)
-
-        p = Tensor(patches.dot(self.weight.data.T) + self.bias.data)
+        p = Tensor(np.sum(self.weight.data.T[x.data], axis=self.axis))  # , keepdims=True))
 
         def gradient_fn():
-            self.weight.grad = p.grad.reshape(-1, self.out_size).T.dot((patches.reshape(-1, self.kernel_size ** 2)))
-            self.bias.grad = np.sum(p.grad.reshape(-1, self.out_size), axis=0)
+            if self.weight.grad is None:
+                self.weight.grad = np.zeros_like(self.weight.data)
+            self.weight.grad.T[x.data] += p.grad
 
         p.gradient_fn = gradient_fn
-        p.parents = {self.weight, self.bias}
+        p.parents = {self.weight}
         return p
 
     def parameters(self):
-        return [self.weight, self.bias]
-
-
-class Flatten(Layer):
-
-    def forward(self, x: Tensor):
-        p = Tensor(np.array(x.data.reshape(x.data.shape[0], -1)))
-
-        def gradient_fn():
-            x.grad = p.grad.reshape(x.data.shape)
-
-        p.gradient_fn = gradient_fn
-        p.parents = {x}
-        return p
-
-
-class Dropout(Layer):
-
-    def __init__(self, dropout_rate=0.3):
-        super().__init__()
-        self.dropout_rate = dropout_rate
-
-    def forward(self, x: Tensor):
-        if not self.training:
-            return x
-
-        mask = np.random.random(x.data.shape) > self.dropout_rate
-        p = Tensor(x.data * mask)
-
-        def gradient_fn():
-            x.grad = p.grad * mask
-
-        p.gradient_fn = gradient_fn
-        p.parents = {x}
-        return p
+        return [self.weight]
 
 
 class ReLU(Layer):
@@ -293,6 +259,20 @@ class MSELoss:
         return mse
 
 
+class BCELoss:
+
+    def __call__(self, p: Tensor, y: Tensor):
+        clipped = np.clip(p.data, 1e-7, 1 - 1e-7)
+        bce = Tensor(-np.mean(y.data * np.log(clipped) + (1 - y.data) * np.log(1 - clipped)))
+
+        def gradient_fn():
+            p.grad = (clipped - y.data) / (clipped * (1 - clipped) * len(p.data))
+
+        bce.gradient_fn = gradient_fn
+        bce.parents = {p}
+        return bce
+
+
 class SGD:
 
     def __init__(self, parameters, lr):
@@ -304,27 +284,22 @@ class SGD:
             p.data -= p.grad * self.lr
 
 
-LEARNING_RATE = 0.01
-EPOCHES = 10
-BATCHES = 2
-KERNELS = 3
+LEARNING_RATE = 0.1
+EPOCHS = 10
 
-dataset = DataLoader(BATCHES)
+dataset = DataLoader()
 
-convolved_rows = dataset.feature(0).shape()[-2] - KERNELS + 1
-convolved_columns = dataset.feature(0).shape()[-1] - KERNELS + 1
-model = Sequential([Convolution2D(dataset.feature(0).shape()[-3], KERNELS, 16),
-                    Flatten(),
-                    Dropout(),
-                    Linear(convolved_rows * convolved_columns * 16, 64),
+model = Sequential([Embedding(len(dataset.vocabulary), 64),
                     Tanh(),
-                    Linear(64, dataset.label(0).size()),
-                    Softmax()])
-loss = MSELoss()
-sgd = SGD(model.parameters(), LEARNING_RATE)
+                    Linear(64, 16),
+                    Tanh(),
+                    Linear(16, 1),
+                    Sigmoid()])
+loss = BCELoss()
+sgd = SGD(model.parameters(), lr=LEARNING_RATE)
 
-for epoch in range(EPOCHES):
-    for i in range(0, dataset.size(), dataset.batch_size):
+for epoch in range(EPOCHS):
+    for i in range(dataset.size()):
         feature, label = dataset.feature(i), dataset.label(i)
 
         prediction = model(feature)
@@ -332,17 +307,21 @@ for epoch in range(EPOCHES):
         error.gradient()
         sgd.backward()
 
-    print(f"epoch: {epoch}")
-    print(f'prediction: {prediction.data}')
-    print(f'error: {error.data}')
-    print(f"hidden weight: {model.layers[3].weight.data}")
-    print(f"hidden bias: {model.layers[3].bias.data}")
-    print(f"output weight: {model.layers[5].weight.data}")
-    print(f"output bias: {model.layers[5].bias.data}")
+    print(f"Epoch: {epoch}")
+    print(f'Prediction: {prediction.data}')
+    print(f'Error: {error.data}')
+    print(f"hidden weight: {model.layers[2].weight.data}")
+    print(f"hidden bias: {model.layers[2].bias.data}")
+    print(f"output weight: {model.layers[4].weight.data}")
+    print(f"output bias: {model.layers[4].bias.data}")
 
 dataset.eval()
-model.eval()
 
-prediction = model(Tensor(dataset.features))
-result = (prediction.data.argmax(axis=1) == dataset.labels.argmax(axis=1)).sum()
-print(f'Result: {result} of {len(dataset.features)}')
+result = 0
+for i in range(dataset.size()):
+    feature, label = dataset.feature(i), dataset.label(i)
+
+    prediction = model(feature)
+    if np.abs(prediction.data - label.data) < 0.5:
+        result += 1
+print(f'Result: {result} of {dataset.size()}')

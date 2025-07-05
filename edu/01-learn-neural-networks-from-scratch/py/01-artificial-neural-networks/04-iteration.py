@@ -52,6 +52,6 @@ for i in range(len(features)):
 
     # 结果输出
     print(f'预测冰淇淋销量：{prediction}')
-    print(f'均方误差：{error / len(features)}')
+    print(f'均方误差：{error}')
     print(f"权重：{weight}")
     print(f"偏置：{bias}")
