@@ -52,11 +52,6 @@ class DataLoader:
         self.labels = [0 if idx == "negative" else 1 for idx in self.sentiments[-10:]]
         self.sequences = self.tokens[-10:]
 
-    def embedding(self, index):
-        ebd = np.zeros(len(self.vocabulary))
-        ebd[index] = 1
-        return ebd
-
     def size(self):
         return len(self.features)
 
@@ -73,7 +68,13 @@ class DataLoader:
         return Tensor([sequence[index:index + self.sequence_batch_size]])
 
     def sequence_label(self, sequence, index):
-        return Tensor([self.embedding(sequence[i + self.sequence_batch_size: i + self.sequence_batch_size + 1])])
+        return Tensor([self.embedding(sequence[index + self.sequence_batch_size:
+                                               index + self.sequence_batch_size + 1])])
+
+    def embedding(self, index):
+        ebd = np.zeros(len(self.vocabulary))
+        ebd[index] = 1
+        return ebd
 
 
 class Tensor:
@@ -376,10 +377,10 @@ loss = CELoss()
 sgd = SGD(model.parameters(), lr=LEARNING_RATE)
 
 for epoch in range(EPOCHS):
-    for sequence in dataset.sequences:
+    for seq in dataset.sequences:
         hidden = None
-        for i in range(dataset.sequence_size(sequence)):
-            feature, label = dataset.sequence_feature(sequence, i), dataset.sequence_label(sequence, i)
+        for i in range(dataset.sequence_size(seq)):
+            feature, label = dataset.sequence_feature(seq, i), dataset.sequence_label(seq, i)
 
             prediction, hidden = model(feature, hidden)
             error = loss(prediction, label)
@@ -396,15 +397,15 @@ for epoch in range(EPOCHS):
 dataset.eval()
 
 result = 0
-for sequence in dataset.sequences:
-    original = [dataset.index2word[sequence[0]]]
-    generated = [dataset.index2word[sequence[0]]]
+for seq in dataset.sequences:
+    original = [dataset.index2word[seq[0]]]
+    generated = [dataset.index2word[seq[0]]]
     hidden = None
-    for i in range(dataset.sequence_size(sequence)):
-        feature = dataset.sequence_feature(sequence, i)
+    for i in range(dataset.sequence_size(seq)):
+        feature = dataset.sequence_feature(seq, i)
 
         prediction, hidden = model(feature, hidden)
-        original.append(dataset.index2word[sequence[i + BATCHES]])
+        original.append(dataset.index2word[seq[i + BATCHES]])
         generated.append(dataset.index2word[prediction.data.argmax()])
 
     print(f'original: {' '.join(original)}')
