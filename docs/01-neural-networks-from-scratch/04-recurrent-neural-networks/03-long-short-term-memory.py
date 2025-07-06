@@ -10,9 +10,8 @@ np.random.seed(99)
 
 class DataLoader:
 
-    def __init__(self, sequence_batch_size, min_frequency=3):
+    def __init__(self, sequence_batch_size):
         self.sequence_batch_size = sequence_batch_size
-        self.min_frequency = min_frequency
 
         self.reviews = []
         self.sentiments = []
@@ -28,7 +27,7 @@ class DataLoader:
             split_reviews.append(self.clean_text(r.lower()).split())
 
         counter = Counter([w for r in split_reviews for w in r])
-        self.vocabulary = set([w for w, c in counter.items() if c >= self.min_frequency])
+        self.vocabulary = set([w for w, c in counter.items()])
         self.word2index = {w: idx for idx, w in enumerate(self.vocabulary)}
         self.index2word = {idx: w for idx, w in enumerate(self.vocabulary)}
         self.tokens = [[self.word2index[w] for w in r if w in self.word2index] for r in split_reviews]
@@ -216,7 +215,7 @@ class Embedding(Layer):
         self.weight = Tensor(np.random.rand(embedding_size, vocabulary_size) / vocabulary_size)
 
     def forward(self, x: Tensor):
-        p = Tensor(np.sum(self.weight.data.T[x.data], axis=self.axis))  # , keepdims=True))
+        p = Tensor(np.sum(self.weight.data.T[x.data], axis=self.axis))
 
         def gradient_fn():
             if self.weight.grad is None:
@@ -363,6 +362,12 @@ class RNN:
         self.output = Linear(embedding_size, vocabulary_size)
         self.tanh = Tanh()
 
+        self.layers = [self.embedding,
+                       self.update,
+                       self.hidden,
+                       self.output,
+                       self.tanh]
+
     def __call__(self, x: Tensor, h: Tensor):
         return self.forward(x, h)
 
@@ -378,8 +383,7 @@ class RNN:
         return self.output(hidden_feature), Tensor(hidden_feature.data)
 
     def parameters(self):
-        return (self.embedding.parameters() + self.update.parameters()
-                + self.hidden.parameters() + self.output.parameters())
+        return [p for l in self.layers for p in l.parameters()]
 
 
 class LSTM:
@@ -396,6 +400,15 @@ class LSTM:
         self.output = Linear(embedding_size, vocabulary_size)
         self.sigmoid = Sigmoid()
         self.tanh = Tanh()
+
+        self.layers = [self.embedding,
+                       self.forget_gate,
+                       self.input_gate,
+                       self.output_gate,
+                       self.cell_update,
+                       self.output,
+                       self.sigmoid,
+                       self.tanh]
 
     def __call__(self, x: Tensor, c: Tensor, h: Tensor):
         return self.forward(x, c, h)
@@ -418,9 +431,7 @@ class LSTM:
         return self.output(hidden_feature), Tensor(cell_feature.data), Tensor(hidden_feature.data)
 
     def parameters(self):
-        return (self.embedding.parameters() + self.forget_gate.parameters()
-                + self.input_gate.parameters() + self.output_gate.parameters()
-                + self.cell_update.parameters() + self.output.parameters())
+        return [p for l in self.layers for p in l.parameters()]
 
 
 LEARNING_RATE = 0.02

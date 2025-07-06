@@ -10,9 +10,7 @@ np.random.seed(99)
 
 class DataLoader:
 
-    def __init__(self, min_frequency=3):
-        self.min_frequency = min_frequency
-
+    def __init__(self):
         self.reviews = []
         self.sentiments = []
         with open('reviews.csv', 'r', encoding='utf-8') as f:
@@ -27,7 +25,7 @@ class DataLoader:
             split_reviews.append(self.clean_text(r.lower()).split())
 
         counter = Counter([w for r in split_reviews for w in r])
-        self.vocabulary = set([w for w, c in counter.items() if c >= self.min_frequency])
+        self.vocabulary = set([w for w, c in counter.items()])
         self.word2index = {w: idx for idx, w in enumerate(self.vocabulary)}
         self.index2word = {idx: w for idx, w in enumerate(self.vocabulary)}
         self.tokens = [[self.word2index[w] for w in r if w in self.word2index] for r in split_reviews]
@@ -166,7 +164,7 @@ class Embedding(Layer):
         self.weight = Tensor(np.random.rand(embedding_size, vocabulary_size) / vocabulary_size)
 
     def forward(self, x: Tensor):
-        p = Tensor(np.sum(self.weight.data.T[x.data], axis=self.axis))  # , keepdims=True))
+        p = Tensor(np.sum(self.weight.data.T[x.data], axis=self.axis))
 
         def gradient_fn():
             if self.weight.grad is None:
