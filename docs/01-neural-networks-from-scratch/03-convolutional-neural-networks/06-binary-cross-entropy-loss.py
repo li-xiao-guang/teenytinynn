@@ -41,6 +41,18 @@ class DataLoader:
     def label(self, index):
         return Tensor(self.labels[index: index + self.batch_size])
 
+    def feature_shape(self):
+        return self.feature(0).shape()
+
+    def label_shape(self):
+        return self.label(0).shape()
+
+    def feature_size(self):
+        return self.feature(0).size()
+
+    def label_size(self):
+        return self.label(0).size()
+
 
 class Tensor:
 
@@ -360,15 +372,16 @@ POOLS = 2
 
 dataset = DataLoader(BATCHES)
 
-convolved_rows = (dataset.feature(0).shape()[-2] - KERNELS + 1) // POOLS
-convolved_columns = (dataset.feature(0).shape()[-1] - KERNELS + 1) // POOLS
-model = Sequential([Convolution2D(dataset.feature(0).shape()[-3], KERNELS, 16),
+_, channel_size, row_size, column_size = dataset.feature_shape()
+conv_row_size = (row_size - KERNELS + 1) // POOLS
+conv_column_size = (column_size - KERNELS + 1) // POOLS
+model = Sequential([Convolution2D(channel_size, KERNELS, 16),
                     Pool2D(POOLS),
                     Flatten(),
                     Dropout(),
-                    Linear(convolved_rows * convolved_columns * 16, 64),
+                    Linear(conv_row_size * conv_column_size * 16, 64),
                     Tanh(),
-                    Linear(64, dataset.label(0).size()),
+                    Linear(64, dataset.label_size()),
                     Softmax()])
 loss = BCELoss()
 sgd = SGD(model.parameters(), LEARNING_RATE)

@@ -30,6 +30,12 @@ class DataLoader:
     def label(self, index):
         return Tensor(self.labels[index: index + self.batch_size])
 
+    def feature_size(self):
+        return self.feature(0).size()
+
+    def label_size(self):
+        return self.label(0).size()
+
 
 class Tensor:
 
@@ -135,8 +141,8 @@ BATCHES = 2
 
 dataset = DataLoader(BATCHES)
 
-model = Sequential([Linear(dataset.feature(0).size(), 4),
-                    Linear(4, dataset.label(0).size())])
+model = Sequential([Linear(dataset.feature_size(), 4),
+                    Linear(4, dataset.label_size())])
 loss = MSELoss()
 sgd = SGD(model.parameters(), LEARNING_RATE)
 

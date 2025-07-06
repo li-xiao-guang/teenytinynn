@@ -7,6 +7,12 @@ class DataLoader:
         self.feature = Tensor([28.1, 58.0])
         self.label = Tensor([165])
 
+    def feature_size(self):
+        return self.feature.size()
+
+    def label_size(self):
+        return self.label.size()
+
 
 class Tensor:
 
@@ -79,7 +85,7 @@ class SGD:
 
 dataset = DataLoader()
 
-model = Linear(dataset.feature.size(), dataset.label.size())
+model = Linear(dataset.feature_size(), dataset.label_size())
 loss = MSELoss()
 sgd = SGD(model.parameters())
 
