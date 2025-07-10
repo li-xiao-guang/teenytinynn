@@ -98,28 +98,6 @@ class Tensor:
     def size(self):
         return np.prod(self.data.shape[1:])
 
-    def __add__(self, other):
-        p = Tensor(self.data + other.data)
-
-        def gradient_fn():
-            self.grad = p.grad
-            other.grad = p.grad
-
-        p.gradient_fn = gradient_fn
-        p.parents = {self, other}
-        return p
-
-    def __mul__(self, other):
-        p = Tensor(self.data * other.data)
-
-        def gradient_fn():
-            self.grad = p.grad * other.data
-            other.grad = p.grad * self.data
-
-        p.gradient_fn = gradient_fn
-        p.parents = {self, other}
-        return p
-
     def concat(self, other, axis):
         p = Tensor(np.concatenate([self.data, other.data], axis=axis))
 
@@ -351,35 +329,6 @@ class SGD:
             p.data -= p.grad * self.lr
 
 
-class Adam:
-
-    def __init__(self, params, lr=0.01, betas=(0.9, 0.999), eps=1e-8):
-        self.parameters = params
-        self.lr = lr
-        self.beta1, self.beta2 = betas
-        self.eps = eps
-
-        self.m = [None for _ in range(len(params))]
-        self.v = [None for _ in range(len(params))]
-        self.t = 0
-
-    def backward(self):
-        self.t += 1
-        for idx, p in enumerate(self.parameters):
-            if p is not None and p.grad is not None:
-                grad = p.grad.reshape(p.data.shape)
-
-                if self.m[idx] is None:
-                    self.m[idx] = np.zeros_like(p.data)
-                    self.v[idx] = np.zeros_like(p.data)
-
-                self.m[idx] = self.beta1 * self.m[idx] + (1 - self.beta1) * grad
-                self.v[idx] = self.beta2 * self.v[idx] + (1 - self.beta2) * (grad ** 2)
-                m_hat = self.m[idx] / (1 - self.beta1 ** self.t)
-                v_hat = self.v[idx] / (1 - self.beta2 ** self.t)
-                p.data -= m_hat / (np.sqrt(v_hat) + self.eps) * self.lr
-
-
 class RNN:
 
     def __init__(self, vocabulary_size, embedding_size):
@@ -416,72 +365,24 @@ class RNN:
         return [p for l in self.layers for p in l.parameters()]
 
 
-class LSTM:
-
-    def __init__(self, vocabulary_size, embedding_size):
-        self.vocabulary_size = vocabulary_size
-        self.embedding_size = embedding_size
-
-        self.embedding = Embedding(vocabulary_size, embedding_size)
-        self.forget_gate = Linear(embedding_size * 2, embedding_size)
-        self.input_gate = Linear(embedding_size * 2, embedding_size)
-        self.output_gate = Linear(embedding_size * 2, embedding_size)
-        self.cell_update = Linear(embedding_size * 2, embedding_size)
-        self.output = Linear(embedding_size, vocabulary_size)
-        self.sigmoid = Sigmoid()
-        self.tanh = Tanh()
-
-        self.layers = [self.embedding,
-                       self.forget_gate,
-                       self.input_gate,
-                       self.output_gate,
-                       self.cell_update,
-                       self.output,
-                       self.sigmoid,
-                       self.tanh]
-
-    def __call__(self, x: Tensor, c: Tensor, h: Tensor):
-        return self.forward(x, c, h)
-
-    def forward(self, x: Tensor, c: Tensor, h: Tensor):
-        if not c:
-            c = Tensor(np.zeros((1, self.embedding_size)))
-        if not h:
-            h = Tensor(np.zeros((1, self.embedding_size)))
-
-        embedding_feature = self.embedding(x)
-        concat_feature = embedding_feature.concat(h, axis=1)
-        forget_hidden = self.sigmoid(self.forget_gate(concat_feature))
-        input_hidden = self.sigmoid(self.input_gate(concat_feature))
-        output_hidden = self.sigmoid(self.output_gate(concat_feature))
-        cell_hidden = self.tanh(self.cell_update(concat_feature))
-        cell_feature = forget_hidden * c + input_hidden * cell_hidden
-        hidden_feature = output_hidden * self.tanh(cell_feature)
-
-        return self.output(hidden_feature), Tensor(cell_feature.data), Tensor(hidden_feature.data)
-
-    def parameters(self):
-        return [p for l in self.layers for p in l.parameters()]
-
-
 LEARNING_RATE = 0.02
 EPOCHS = 100
 BATCHES = 2
 
 dataset = DataLoader(BATCHES)
 
-model = LSTM(len(dataset.vocabulary), 64)
+model = RNN(len(dataset.vocabulary), 64)
 
 loss = CELoss()
-sgd = Adam(model.parameters(), lr=LEARNING_RATE)
+sgd = SGD(model.parameters(), lr=LEARNING_RATE)
 
 for epoch in range(EPOCHS):
     for seq in dataset.sequences:
-        cell = hidden = None
+        hidden = None
         for i in range(dataset.sequence_size(seq)):
             feature, label = dataset.sequence_feature(seq, i), dataset.sequence_label(seq, i)
 
-            prediction, cell, hidden = model(feature, cell, hidden)
+            prediction, hidden = model(feature, hidden)
             error = loss(prediction, label)
             error.gradient()
             sgd.backward()
@@ -497,13 +398,14 @@ dataset.eval()
 
 result = 0
 for seq in dataset.sequences:
-    original = [dataset.index2word[seq[0]]]
-    generated = [dataset.index2word[seq[0]]]
-    cell = hidden = None
+    original = [dataset.index2word[seq[i]] for i in range(BATCHES)]
+    generated = original.copy()
+
+    hidden = None
     for i in range(dataset.sequence_size(seq)):
         feature = dataset.sequence_feature(seq, i)
 
-        prediction, cell, hidden = model(feature, cell, hidden)
+        prediction, hidden = model(feature, hidden)
         original.append(dataset.index2word[seq[i + BATCHES]])
         generated.append(dataset.index2word[prediction.data.argmax()])
 

@@ -351,6 +351,35 @@ class SGD:
             p.data -= p.grad * self.lr
 
 
+class Adam:
+
+    def __init__(self, params, lr=0.01, betas=(0.9, 0.999), eps=1e-8):
+        self.parameters = params
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+
+        self.m = [None for _ in range(len(params))]
+        self.v = [None for _ in range(len(params))]
+        self.t = 0
+
+    def backward(self):
+        self.t += 1
+        for idx, p in enumerate(self.parameters):
+            if p is not None and p.grad is not None:
+                grad = p.grad.reshape(p.data.shape)
+
+                if self.m[idx] is None:
+                    self.m[idx] = np.zeros_like(p.data)
+                    self.v[idx] = np.zeros_like(p.data)
+
+                self.m[idx] = self.beta1 * self.m[idx] + (1 - self.beta1) * grad
+                self.v[idx] = self.beta2 * self.v[idx] + (1 - self.beta2) * (grad ** 2)
+                m_hat = self.m[idx] / (1 - self.beta1 ** self.t)
+                v_hat = self.v[idx] / (1 - self.beta2 ** self.t)
+                p.data -= m_hat / (np.sqrt(v_hat) + self.eps) * self.lr
+
+
 class RNN:
 
     def __init__(self, vocabulary_size, embedding_size):
@@ -444,7 +473,7 @@ dataset = DataLoader(BATCHES)
 model = LSTM(len(dataset.vocabulary), 64)
 
 loss = CELoss()
-sgd = SGD(model.parameters(), lr=LEARNING_RATE)
+sgd = Adam(model.parameters(), lr=LEARNING_RATE)
 
 for epoch in range(EPOCHS):
     for seq in dataset.sequences:
@@ -468,8 +497,9 @@ dataset.eval()
 
 result = 0
 for seq in dataset.sequences:
-    original = [dataset.index2word[seq[0]]]
-    generated = [dataset.index2word[seq[0]]]
+    original = [dataset.index2word[seq[i]] for i in range(BATCHES)]
+    generated = original.copy()
+
     cell = hidden = None
     for i in range(dataset.sequence_size(seq)):
         feature = dataset.sequence_feature(seq, i)

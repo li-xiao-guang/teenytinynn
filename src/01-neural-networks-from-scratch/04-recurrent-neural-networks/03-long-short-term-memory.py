@@ -98,6 +98,28 @@ class Tensor:
     def size(self):
         return np.prod(self.data.shape[1:])
 
+    def __add__(self, other):
+        p = Tensor(self.data + other.data)
+
+        def gradient_fn():
+            self.grad = p.grad
+            other.grad = p.grad
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self, other}
+        return p
+
+    def __mul__(self, other):
+        p = Tensor(self.data * other.data)
+
+        def gradient_fn():
+            self.grad = p.grad * other.data
+            other.grad = p.grad * self.data
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self, other}
+        return p
+
     def concat(self, other, axis):
         p = Tensor(np.concatenate([self.data, other.data], axis=axis))
 
@@ -365,24 +387,72 @@ class RNN:
         return [p for l in self.layers for p in l.parameters()]
 
 
+class LSTM:
+
+    def __init__(self, vocabulary_size, embedding_size):
+        self.vocabulary_size = vocabulary_size
+        self.embedding_size = embedding_size
+
+        self.embedding = Embedding(vocabulary_size, embedding_size)
+        self.forget_gate = Linear(embedding_size * 2, embedding_size)
+        self.input_gate = Linear(embedding_size * 2, embedding_size)
+        self.output_gate = Linear(embedding_size * 2, embedding_size)
+        self.cell_update = Linear(embedding_size * 2, embedding_size)
+        self.output = Linear(embedding_size, vocabulary_size)
+        self.sigmoid = Sigmoid()
+        self.tanh = Tanh()
+
+        self.layers = [self.embedding,
+                       self.forget_gate,
+                       self.input_gate,
+                       self.output_gate,
+                       self.cell_update,
+                       self.output,
+                       self.sigmoid,
+                       self.tanh]
+
+    def __call__(self, x: Tensor, c: Tensor, h: Tensor):
+        return self.forward(x, c, h)
+
+    def forward(self, x: Tensor, c: Tensor, h: Tensor):
+        if not c:
+            c = Tensor(np.zeros((1, self.embedding_size)))
+        if not h:
+            h = Tensor(np.zeros((1, self.embedding_size)))
+
+        embedding_feature = self.embedding(x)
+        concat_feature = embedding_feature.concat(h, axis=1)
+        forget_hidden = self.sigmoid(self.forget_gate(concat_feature))
+        input_hidden = self.sigmoid(self.input_gate(concat_feature))
+        output_hidden = self.sigmoid(self.output_gate(concat_feature))
+        cell_hidden = self.tanh(self.cell_update(concat_feature))
+        cell_feature = forget_hidden * c + input_hidden * cell_hidden
+        hidden_feature = output_hidden * self.tanh(cell_feature)
+
+        return self.output(hidden_feature), Tensor(cell_feature.data), Tensor(hidden_feature.data)
+
+    def parameters(self):
+        return [p for l in self.layers for p in l.parameters()]
+
+
 LEARNING_RATE = 0.02
 EPOCHS = 100
 BATCHES = 2
 
 dataset = DataLoader(BATCHES)
 
-model = RNN(len(dataset.vocabulary), 64)
+model = LSTM(len(dataset.vocabulary), 64)
 
 loss = CELoss()
 sgd = SGD(model.parameters(), lr=LEARNING_RATE)
 
 for epoch in range(EPOCHS):
     for seq in dataset.sequences:
-        hidden = None
+        cell = hidden = None
         for i in range(dataset.sequence_size(seq)):
             feature, label = dataset.sequence_feature(seq, i), dataset.sequence_label(seq, i)
 
-            prediction, hidden = model(feature, hidden)
+            prediction, cell, hidden = model(feature, cell, hidden)
             error = loss(prediction, label)
             error.gradient()
             sgd.backward()
@@ -398,13 +468,14 @@ dataset.eval()
 
 result = 0
 for seq in dataset.sequences:
-    original = [dataset.index2word[seq[0]]]
-    generated = [dataset.index2word[seq[0]]]
-    hidden = None
+    original = [dataset.index2word[seq[i]] for i in range(BATCHES)]
+    generated = original.copy()
+
+    cell = hidden = None
     for i in range(dataset.sequence_size(seq)):
         feature = dataset.sequence_feature(seq, i)
 
-        prediction, hidden = model(feature, hidden)
+        prediction, cell, hidden = model(feature, cell, hidden)
         original.append(dataset.index2word[seq[i + BATCHES]])
         generated.append(dataset.index2word[prediction.data.argmax()])
 
