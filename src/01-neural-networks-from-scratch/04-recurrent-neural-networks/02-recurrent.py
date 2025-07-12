@@ -291,7 +291,8 @@ class BCELoss:
 
     def __call__(self, p: Tensor, y: Tensor):
         clipped = np.clip(p.data, 1e-7, 1 - 1e-7)
-        bce = Tensor(-np.mean(y.data * np.log(clipped) + (1 - y.data) * np.log(1 - clipped)))
+        bce = Tensor(-np.mean(y.data * np.log(clipped)
+                              + (1 - y.data) * np.log(1 - clipped)))
 
         def gradient_fn():
             p.grad = (clipped - y.data) / (clipped * (1 - clipped) * len(p.data))
@@ -380,7 +381,8 @@ for epoch in range(EPOCHS):
     for seq in dataset.sequences:
         hidden = None
         for i in range(dataset.sequence_size(seq)):
-            feature, label = dataset.sequence_feature(seq, i), dataset.sequence_label(seq, i)
+            feature = dataset.sequence_feature(seq, i)
+            label = dataset.sequence_label(seq, i)
 
             prediction, hidden = model(feature, hidden)
             error = loss(prediction, label)

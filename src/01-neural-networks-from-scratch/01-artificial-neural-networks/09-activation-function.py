@@ -13,8 +13,10 @@ labels = np.array([[165],
                    [70],
                    [155]])
 
-hidden_weight, hidden_bias = np.random.rand(4, 2) / 2, np.zeros(4)
-output_weight, output_bias = np.random.rand(1, 4) / 4, np.zeros(1)
+hidden_weight = np.random.rand(4, 2) / 2
+hidden_bias = np.zeros(4)
+output_weight = np.random.rand(1, 4) / 4
+output_bias = np.zeros(1)
 
 
 def forward(x, w, b):
@@ -51,7 +53,8 @@ BATCHES = 2
 
 for epoch in range(EPOCHES):
     for i in range(0, len(features), BATCHES):
-        feature, label = features[i: i + BATCHES], labels[i: i + BATCHES]
+        feature = features[i: i + BATCHES]
+        label = labels[i: i + BATCHES]
 
         hidden = relu(forward(feature, hidden_weight, hidden_bias))
         prediction = forward(hidden, output_weight, output_bias)

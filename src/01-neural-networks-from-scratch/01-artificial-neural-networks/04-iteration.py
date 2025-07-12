@@ -11,7 +11,8 @@ labels = np.array([[165],
                    [70],
                    [155]])
 
-weight, bias = np.ones([1, 2]) / 2, np.zeros(1)
+weight = np.ones([1, 2]) / 2
+bias = np.zeros(1)
 
 
 def forward(x, w, b):
@@ -31,7 +32,8 @@ def backward(x, d, w, b):
 
 
 for i in range(len(features)):
-    feature, label = features[i], labels[i]
+    feature = features[i]
+    label = labels[i]
 
     prediction = forward(feature, weight, bias)
     error = mse_loss(prediction, label)

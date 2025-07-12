@@ -11,7 +11,8 @@ labels = np.array([[165],
                    [70],
                    [155]])
 
-weight, bias = np.ones([1, 2]) / 2, np.zeros(1)
+weight = np.ones([1, 2]) / 2
+bias = np.zeros(1)
 
 
 def forward(x, w, b):
@@ -36,7 +37,8 @@ BATCHES = 2
 
 for epoch in range(EPOCHES):
     for i in range(0, len(features), BATCHES):
-        feature, label = features[i: i + BATCHES], labels[i: i + BATCHES]
+        feature = features[i: i + BATCHES]
+        label = labels[i: i + BATCHES]
 
         prediction = forward(feature, weight, bias)
         error = mse_loss(prediction, label)

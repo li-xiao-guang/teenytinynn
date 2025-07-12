@@ -107,7 +107,8 @@ loss = MSELoss()
 sgd = SGD(model.parameters())
 
 for i in range(dataset.size()):
-    feature, label = dataset.feature(i), dataset.label(i)
+    feature = dataset.feature(i)
+    label = dataset.label(i)
 
     prediction = model(feature)
     error = loss(prediction, label)

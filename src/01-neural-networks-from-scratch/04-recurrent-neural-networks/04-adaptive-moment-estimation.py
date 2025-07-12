@@ -479,7 +479,8 @@ for epoch in range(EPOCHS):
     for seq in dataset.sequences:
         cell = hidden = None
         for i in range(dataset.sequence_size(seq)):
-            feature, label = dataset.sequence_feature(seq, i), dataset.sequence_label(seq, i)
+            feature = dataset.sequence_feature(seq, i)
+            label = dataset.sequence_label(seq, i)
 
             prediction, cell, hidden = model(feature, cell, hidden)
             error = loss(prediction, label)

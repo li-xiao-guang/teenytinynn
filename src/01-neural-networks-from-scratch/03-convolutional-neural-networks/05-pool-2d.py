@@ -374,7 +374,8 @@ sgd = SGD(model.parameters(), LEARNING_RATE)
 
 for epoch in range(EPOCHES):
     for i in range(0, dataset.size(), dataset.batch_size):
-        feature, label = dataset.feature(i), dataset.label(i)
+        feature = dataset.feature(i)
+        label = dataset.label(i)
 
         prediction = model(feature)
         error = loss(prediction, label)
