@@ -82,6 +82,17 @@ class Tensor:
         p.parents = {self, other}
         return p
 
+    def __sub__(self, other):
+        p = Tensor(self.data - other.data)
+
+        def gradient_fn():
+            self.grad = p.grad
+            other.grad = -p.grad
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self, other}
+        return p
+
     def __mul__(self, other):
         p = Tensor(self.data * other.data)
 
@@ -92,6 +103,46 @@ class Tensor:
         p.gradient_fn = gradient_fn
         p.parents = {self, other}
         return p
+
+    def __truediv__(self, other):
+        p = Tensor(self.data / other.data)
+
+        def gradient_fn():
+            self.grad = p.grad / other.data
+            other.grad = -p.grad * self.data / (other.data ** 2)
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self, other}
+        return p
+
+    def __matmul__(self, other):
+        p = Tensor(np.matmul(self.data, other.data))
+
+        def gradient_fn():
+            self.grad = np.matmul(p.grad, other.data.T)
+            other.grad = np.matmul(self.data.T, p.grad)
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self, other}
+        return p
+
+    def transpose(self, axes=None):
+        p = Tensor(np.transpose(self.data, axes))
+
+        def gradient_fn():
+            if axes is None:
+                self.grad = np.transpose(p.grad)
+            else:
+                idx = np.argsort(axes)
+                self.grad = np.transpose(p.grad, idx)
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self}
+        return p
+
+    @property
+    def T(self):
+        return self.transpose()
 
     def concat(self, other, axis):
         p = Tensor(np.concatenate([self.data, other.data], axis=axis))
@@ -152,25 +203,48 @@ class Embedding(Layer):
         return [self.weight]
 
 
-CONTEXT_SIZE = 4
-SEQUENCES = 8
+class Softmax(Layer):
+
+    def __init__(self, axis=1):
+        super().__init__()
+        self.axis = axis
+
+    def forward(self, x: Tensor):
+        exp = np.exp(x.data - np.max(x.data, axis=self.axis, keepdims=True))
+        p = Tensor(exp / np.sum(exp, axis=self.axis, keepdims=True))
+
+        def gradient_fn():
+            x.grad = np.zeros_like(x.data)
+            for idx in range(x.data.shape[0]):
+                itm = p.data[idx].reshape(-1, 1)
+                x.grad[idx] = (np.diagflat(itm) - itm @ itm.T) @ p.grad[idx]
+
+        p.gradient_fn = gradient_fn
+        p.parents = {x}
+        return p
+
+
+CONTEXT_SIZE = 6
 
 dataset = DataLoader('../a-day.txt', CONTEXT_SIZE, 1)
 
-token_embedding = Embedding(len(dataset.vocabulary), 16, 0)
-print("Embedding weight shape: ", token_embedding.weight.shape())
+token_embedding = Embedding(len(dataset.vocabulary), 4, 0)
+positional_embedding = Embedding(CONTEXT_SIZE, 4, 0)
 
-positional_embedding = Embedding(CONTEXT_SIZE, 16, 0)
-print("Positional weight shape: ", positional_embedding.weight.shape())
-
-feature, label = dataset[:SEQUENCES]
+feature, label = dataset[0]
 
 feature_token = token_embedding(Tensor(feature))
-print("Token shape: ", feature_token.shape())
-
 feature_position = positional_embedding(Tensor(range(CONTEXT_SIZE)))
-print("Position shape: ", feature_position.shape())
-
 feature_embedding = feature_token + feature_position
-print("Embedding shape: ", feature_embedding.shape())
 print("Embedding: ", feature_embedding.data)
+
+attention_scores = feature_embedding @ feature_embedding.T
+print("Attention scores: ", attention_scores.data)
+
+softmax = Softmax()
+attention_weights = softmax(attention_scores)
+print("Attention weights: ", attention_weights.data)
+print("Attention weight sum: ", attention_weights.data.sum(axis=1))
+
+context_vectors = attention_weights @ feature_embedding
+print("Context vectors: ", context_vectors.data)

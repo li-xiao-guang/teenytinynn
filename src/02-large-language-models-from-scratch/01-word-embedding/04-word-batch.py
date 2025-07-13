@@ -48,4 +48,4 @@ class DataLoader:
 dataset = DataLoader('../a-day.txt', 4, 1)
 
 for i in range(len(dataset)):
-    print(dataset[i])
+    print("(Feature, Label): ", dataset[i])

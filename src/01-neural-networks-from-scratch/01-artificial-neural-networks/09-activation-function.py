@@ -20,7 +20,7 @@ output_bias = np.zeros(1)
 
 
 def forward(x, w, b):
-    return x.dot(w.T) + b
+    return x @ w.T + b
 
 
 def relu(x):
@@ -36,7 +36,7 @@ def gradient(p, y):
 
 
 def gradient_backward(d, w):
-    return d.dot(w)
+    return d @ w
 
 
 def relu_backward(y, d):
@@ -44,7 +44,7 @@ def relu_backward(y, d):
 
 
 def backward(x, d, w, b, lr):
-    return w - d.T.dot(x) * lr, b - np.sum(d, axis=0) * lr
+    return w - d.T @ x * lr, b - np.sum(d, axis=0) * lr
 
 
 LEARNING_RATE = 0.00001

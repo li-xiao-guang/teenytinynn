@@ -36,7 +36,7 @@ class Linear:
         return self.forward(x)
 
     def forward(self, x: Tensor):
-        return Tensor(x.data.dot(self.weight.data.T) + self.bias.data)
+        return Tensor(x.data @ self.weight.data.T + self.bias.data)
 
 
 class MSELoss:

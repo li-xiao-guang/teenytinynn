@@ -7,7 +7,7 @@ bias = np.zeros(1)
 
 
 def forward(x, w, b):
-    return x.dot(w.T) + b
+    return x @ w.T + b
 
 
 prediction = forward(feature, weight, bias)

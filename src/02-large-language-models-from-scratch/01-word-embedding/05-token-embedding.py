@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+np.random.seed(99)
+
 
 class DataLoader:
 
@@ -150,14 +152,15 @@ class Embedding(Layer):
         return [self.weight]
 
 
-BATCHES = 4
+CONTEXT_SIZE = 4
 
-dataset = DataLoader('../a-day.txt', BATCHES, 1)
+dataset = DataLoader('../a-day.txt', CONTEXT_SIZE, 1)
 
 token_embedding = Embedding(len(dataset.vocabulary), 16, 0)
-print(token_embedding.weight.shape())
+print("Embedding weight shape: ", token_embedding.weight.shape())
 
 feature, label = dataset[0]
 
 feature_token = token_embedding(Tensor(feature))
-print(feature_token.shape())
+print("Token shape: ", feature_token.shape())
+print("Tokens: ", feature_token.data)

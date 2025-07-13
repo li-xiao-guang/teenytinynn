@@ -34,5 +34,5 @@ dataset = DataLoader('../a-day.txt')
 demo_text = [""""Be careful," his mother says quickly.""",
              """"I will," Tom replies."""]
 ids = dataset.encode(" <|eos|> ".join(demo_text))
-print(ids)
-print(dataset.decode(ids))
+print("Encode: ", ids)
+print("Decode: ", dataset.decode(ids))

@@ -190,12 +190,12 @@ class Linear(Layer):
         return self.forward(x)
 
     def forward(self, x: Tensor):
-        p = Tensor(x.data.dot(self.weight.data.T) + self.bias.data)
+        p = Tensor(x.data @ self.weight.data.T + self.bias.data)
 
         def gradient_fn():
-            self.weight.grad = p.grad.T.dot(x.data)
+            self.weight.grad = p.grad.T @ x.data
             self.bias.grad = np.sum(p.grad, axis=0)
-            x.grad = p.grad.dot(self.weight.data)
+            x.grad = p.grad @ self.weight.data
 
         p.gradient_fn = gradient_fn
         p.parents = {self.weight, self.bias, x}
@@ -289,7 +289,7 @@ class Softmax(Layer):
             x.grad = np.zeros_like(x.data)
             for idx in range(x.data.shape[0]):
                 itm = p.data[idx].reshape(-1, 1)
-                x.grad[idx] = (np.diagflat(itm) - itm.dot(itm.T)).dot(p.grad[idx])
+                x.grad[idx] = (np.diagflat(itm) - itm @ itm.T) @ p.grad[idx]
 
         p.gradient_fn = gradient_fn
         p.parents = {x}

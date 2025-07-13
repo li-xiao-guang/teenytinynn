@@ -46,7 +46,7 @@ class Linear:
         return self.forward(x)
 
     def forward(self, x: Tensor):
-        p = Tensor(x.data.dot(self.weight.data.T) + self.bias.data)
+        p = Tensor(x.data @ self.weight.data.T + self.bias.data)
 
         def gradient_fn():
             self.weight.grad = p.grad * x.data
