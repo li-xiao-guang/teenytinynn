@@ -186,9 +186,6 @@ class Linear(Layer):
         self.weight = Tensor(np.random.rand(out_size, in_size) / in_size)
         self.bias = Tensor(np.zeros(out_size))
 
-    def __call__(self, x: Tensor):
-        return self.forward(x)
-
     def forward(self, x: Tensor):
         p = Tensor(x.data @ self.weight.data.T + self.bias.data)
 
@@ -465,7 +462,7 @@ class LSTM:
 
 
 LEARNING_RATE = 0.02
-EPOCHS = 100
+EPOCHS = 10
 BATCHES = 2
 
 dataset = DataLoader(BATCHES)
@@ -496,7 +493,6 @@ for epoch in range(EPOCHS):
 
 dataset.eval()
 
-result = 0
 for seq in dataset.sequences:
     original = [dataset.index2word[seq[i]] for i in range(BATCHES)]
     generated = original.copy()

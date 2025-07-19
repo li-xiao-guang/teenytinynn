@@ -61,6 +61,11 @@ class DataLoader:
         text = " ".join([self.index2word[index] for index in tokens])
         return re.sub(r'\s+([,.:;?_!"()\'])', r'\1', text)
 
+    def embedding(self, index):
+        ebd = np.zeros(len(self.vocabulary))
+        ebd[index] = 1
+        return ebd
+
 
 class Tensor:
 
@@ -166,6 +171,16 @@ class Tensor:
         p.parents = {self, other}
         return p
 
+    def reshape(self, shape):
+        p = Tensor(np.reshape(self.data, shape))
+
+        def gradient_fn():
+            self.grad = np.reshape(p.grad, self.data.shape)
+
+        p.gradient_fn = gradient_fn
+        p.parents = {self}
+        return p
+
 
 class Layer(ABC):
 
@@ -242,6 +257,27 @@ class Embedding(Layer):
         return [self.weight]
 
 
+class Dropout(Layer):
+
+    def __init__(self, dropout_rate=0.3):
+        super().__init__()
+        self.dropout_rate = dropout_rate
+
+    def forward(self, x: Tensor):
+        if not self.training:
+            return x
+
+        mask = np.random.random(x.data.shape) > self.dropout_rate
+        p = Tensor(x.data * mask)
+
+        def gradient_fn():
+            x.grad = p.grad * mask
+
+        p.gradient_fn = gradient_fn
+        p.parents = {x}
+        return p
+
+
 class Triu(Layer):
 
     def __init__(self, value=-np.inf):
@@ -301,20 +337,73 @@ class Softmax(Layer):
         return p
 
 
+class CELoss:
+
+    def __call__(self, p: Tensor, y: Tensor):
+        exp = np.exp(p.data - np.max(p.data, axis=-1, keepdims=True))
+        softmax = exp / np.sum(exp, axis=-1, keepdims=True)
+
+        log = np.log(softmax + 1e-10)
+        ce = Tensor(0 - np.sum(y.data * log) / len(p.data))
+
+        def gradient_fn():
+            p.grad = (softmax - y.data) / len(p.data)
+
+        ce.gradient_fn = gradient_fn
+        ce.parents = {p}
+        return ce
+
+
+class Adam:
+
+    def __init__(self, params, lr=0.01, betas=(0.9, 0.999), eps=1e-8):
+        self.parameters = params
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+
+        self.m = [None for _ in range(len(params))]
+        self.v = [None for _ in range(len(params))]
+        self.t = 0
+
+    def backward(self):
+        self.t += 1
+        for idx, p in enumerate(self.parameters):
+            if p is not None and p.grad is not None:
+                grad = p.grad.reshape(p.data.shape)
+
+                if self.m[idx] is None:
+                    self.m[idx] = np.zeros_like(p.data)
+                    self.v[idx] = np.zeros_like(p.data)
+
+                self.m[idx] = self.beta1 * self.m[idx] + (1 - self.beta1) * grad
+                self.v[idx] = self.beta2 * self.v[idx] + (1 - self.beta2) * (grad ** 2)
+                m_hat = self.m[idx] / (1 - self.beta1 ** self.t)
+                v_hat = self.v[idx] / (1 - self.beta2 ** self.t)
+                p.data -= m_hat / (np.sqrt(v_hat) + self.eps) * self.lr
+
+
 class GPT(Layer):
 
-    def __init__(self, vocabulary_size, context_size, embedding_size):
+    def __init__(self, vocabulary_size, context_size, embedding_size, heads):
         super().__init__()
         self.vocabulary_size = vocabulary_size
         self.context_size = context_size
         self.embedding_size = embedding_size
+        self.heads = heads
 
         self.embedding = GPTEmbedding(self.vocabulary_size, self.context_size, self.embedding_size)
-        self.attention = GPTAttention(self.context_size, self.embedding_size)
+        self.attention = GPTAttention(self.context_size, self.embedding_size, self.heads)
+        self.output = GPTOutput(self.vocabulary_size, self.embedding_size)
+
+        self.layers = [self.embedding,
+                       self.attention,
+                       self.output]
 
     def forward(self, x: Tensor):
         x = self.embedding(x)
-        return self.attention(x)
+        x = self.attention(x)
+        return self.output(x)
 
 
 class GPTEmbedding(Layer):
@@ -328,6 +417,9 @@ class GPTEmbedding(Layer):
         self.token_embedding = Embedding(self.vocabulary_size, self.embedding_size)
         self.positional_embedding = Embedding(self.context_size, self.embedding_size)
 
+        self.layers = [self.token_embedding,
+                       self.positional_embedding]
+
     def forward(self, x: Tensor):
         token = self.token_embedding(x)
         position = self.positional_embedding(Tensor(range(self.context_size)))
@@ -336,35 +428,88 @@ class GPTEmbedding(Layer):
 
 class GPTAttention(Layer):
 
-    def __init__(self, context_size, embedding_size):
+    def __init__(self, context_size, embedding_size, heads=1):
         super().__init__()
         self.context_size = context_size
         self.embedding_size = embedding_size
+        self.heads = heads
 
-        self.attention_query = Linear(self.embedding_size, self.embedding_size)
-        self.attention_key = Linear(self.embedding_size, self.embedding_size)
-        self.attention_value = Linear(self.embedding_size, self.embedding_size)
+        self.query = Linear(self.embedding_size, self.embedding_size * self.heads)
+        self.key = Linear(self.embedding_size, self.embedding_size * self.heads)
+        self.value = Linear(self.embedding_size, self.embedding_size * self.heads)
         self.triu = Triu(self.context_size)
         self.softmax = Softmax()
+        self.merge = Linear(self.heads * self.embedding_size, self.embedding_size)
+
+        self.layers = [self.query,
+                       self.key,
+                       self.value,
+                       self.triu,
+                       self.softmax,
+                       self.merge]
 
     def forward(self, x: Tensor):
-        query = self.attention_query(x)
-        key = self.attention_key(x)
-        value = self.attention_value(x)
+        query = self.query(x).reshape((-1, self.heads, self.embedding_size))
+        key = self.key(x).reshape((-1, self.heads, self.embedding_size))
+        value = self.value(x).reshape((-1, self.heads, self.embedding_size))
 
-        scores = self.triu(query @ key.T)
+        scores = self.triu(query @ key.transpose((0, 2, 1)))
         weights = self.softmax(scores)
-        return weights @ value
+        vectors = self.merge((weights @ value).reshape((-1, self.heads * self.embedding_size)))
+        return vectors
+
+
+class GPTOutput(Layer):
+
+    def __init__(self, vocabulary_size, embedding_size):
+        super().__init__()
+        self.vocabulary_size = vocabulary_size
+        self.embedding_size = embedding_size
+
+        self.output = Linear(self.embedding_size, self.vocabulary_size)
+
+        self.layers = [self.output]
+
+    def forward(self, x: Tensor):
+        return self.output(x)
 
 
 CONTEXT_SIZE = 4
 EMBEDDING_SIZE = 3
+HEADS = 2
+LEARNING_RATE = 0.0000001
+EPOCHS = 10
 
 dataset = DataLoader('../a-day.txt', CONTEXT_SIZE, 1)
 
-model = GPT(len(dataset.vocabulary), CONTEXT_SIZE, EMBEDDING_SIZE)
+model = GPT(len(dataset.vocabulary), CONTEXT_SIZE, EMBEDDING_SIZE, HEADS)
 
-feature, label = dataset[0]
+loss = CELoss()
+sgd = Adam(model.parameters(), lr=LEARNING_RATE)
 
-prediction = model(Tensor(feature))
-print("Context vectors: ", prediction.data)
+for epoch in range(EPOCHS):
+    for i in range(len(dataset)):
+        feature, label = dataset[i]
+
+        prediction = model(Tensor(feature))
+        error = loss(prediction, Tensor(dataset.embedding(label)))
+        error.gradient()
+        sgd.backward()
+
+    print(f"Epoch: {epoch}")
+    print(f'Prediction: {prediction.data}')
+    print(f'Error: {error.data}')
+
+dataset.eval()
+
+for i in range(len(dataset)):
+    feature, label = dataset[i]
+
+    prediction = model(Tensor(feature))
+
+    print("Feature: ", dataset.decode(feature))
+    print("Label: ", dataset.decode(label))
+    tokens = []
+    for i in range(len(label)):
+        tokens.append(prediction.data[i].argmax())
+    print("Prediction: ", dataset.decode(tokens))

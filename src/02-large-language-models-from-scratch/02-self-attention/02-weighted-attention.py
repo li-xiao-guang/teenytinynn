@@ -24,15 +24,33 @@ class DataLoader:
 
         self.features = []
         self.labels = []
-
-        for i in range(0, len(self.tokens) - self.batch_size, self.stride):
-            self.features.append(self.tokens[i: i + self.batch_size])
-            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+        self.train()
 
     @staticmethod
     def split_text(text):
         words = re.split(r'([,.:;?_!"()\']|\s)', text.lower())
         return [t.strip() for t in words if t.strip()]
+
+    def train(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(0, len(self.tokens) * 9 // 10 - self.batch_size, self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def eval(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(len(self.tokens) * 9 // 10 - self.batch_size + 1, len(self.tokens) - self.batch_size,
+                       self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def __len__(self):  # 3
+        return len(self.features)
+
+    def __getitem__(self, index):  # 4
+        return self.features[index], self.labels[index]
 
     def encode(self, text):
         words = self.split_text(text)
@@ -42,12 +60,6 @@ class DataLoader:
     def decode(self, tokens):
         text = " ".join([self.index2word[index] for index in tokens])
         return re.sub(r'\s+([,.:;?_!"()\'])', r'\1', text)
-
-    def __len__(self):  # 3
-        return len(self.features)
-
-    def __getitem__(self, index):  # 4
-        return self.features[index], self.labels[index]
 
 
 class Tensor:
@@ -119,8 +131,8 @@ class Tensor:
         p = Tensor(np.matmul(self.data, other.data))
 
         def gradient_fn():
-            self.grad = np.matmul(p.grad, other.data.T)
-            other.grad = np.matmul(self.data.T, p.grad)
+            self.grad = np.matmul(p.grad, other.data.swapaxes(-1, -2))
+            other.grad = np.matmul(self.data.swapaxes(-1, -2), p.grad)
 
         p.gradient_fn = gradient_fn
         p.parents = {self, other}
@@ -179,43 +191,33 @@ class Layer(ABC):
 
 class Linear(Layer):
 
-    def __init__(self, in_size, out_size, bias_enabled=True):
+    def __init__(self, in_size, out_size):
         super().__init__()
         self.in_size = in_size
         self.out_size = out_size
-        self.bias_enabled = bias_enabled
 
         self.weight = Tensor(np.random.rand(out_size, in_size) / in_size)
         self.bias = Tensor(np.zeros(out_size))
-
-    def __call__(self, x: Tensor):
-        return self.forward(x)
 
     def forward(self, x: Tensor):
         p = Tensor(x.data @ self.weight.data.T + self.bias.data)
 
         def gradient_fn():
             self.weight.grad = p.grad.T @ x.data
-            if self.bias_enabled:
-                self.bias.grad = np.sum(p.grad, axis=0)
+            self.bias.grad = np.sum(p.grad, axis=0)
             x.grad = p.grad @ self.weight.data
 
         p.gradient_fn = gradient_fn
-        p.parents = {self.weight, x}
-        if self.bias_enabled:
-            p.parents.add(self.bias)
+        p.parents = {self.weight, self.bias, x}
         return p
 
     def parameters(self):
-        parameters = [self.weight]
-        if self.bias_enabled:
-            parameters.append(self.bias)
-        return parameters
+        return [self.weight, self.bias]
 
 
 class Embedding(Layer):
 
-    def __init__(self, vocabulary_size, embedding_size, axis=1):
+    def __init__(self, vocabulary_size, embedding_size, axis=None):
         super().__init__()
         self.vocabulary_size = vocabulary_size
         self.embedding_size = embedding_size
@@ -224,7 +226,8 @@ class Embedding(Layer):
         self.weight = Tensor(np.random.rand(embedding_size, vocabulary_size) / vocabulary_size)
 
     def forward(self, x: Tensor):
-        p = Tensor(self.weight.data.T[x.data])
+        weights = self.weight.data.T[x.data]
+        p = Tensor(np.sum(weights, axis=self.axis) if self.axis is not None else weights)
 
         def gradient_fn():
             if self.weight.grad is None:
@@ -241,7 +244,7 @@ class Embedding(Layer):
 
 class Softmax(Layer):
 
-    def __init__(self, axis=1):
+    def __init__(self, axis=-1):
         super().__init__()
         self.axis = axis
 
@@ -251,44 +254,91 @@ class Softmax(Layer):
 
         def gradient_fn():
             x.grad = np.zeros_like(x.data)
-            for idx in range(x.data.shape[0]):
-                itm = p.data[idx].reshape(-1, 1)
-                x.grad[idx] = (np.diagflat(itm) - itm @ itm.T) @ p.grad[idx]
+
+            shape = x.data.shape
+            axis = self.axis if self.axis >= 0 else len(shape) + self.axis
+            shapes = list(shape)
+            shapes.pop(axis)
+
+            for idx in np.ndindex(tuple(shapes)):
+                indices = list(idx)
+                indices.insert(axis, slice(None))
+                indices = tuple(indices)
+
+                probs = p.data[indices]
+                grad = p.grad[indices]
+
+                probs_col = probs.reshape(-1, 1)
+                jacobian = np.diagflat(probs) - probs_col @ probs_col.T
+                x.grad[indices] = jacobian @ grad
 
         p.gradient_fn = gradient_fn
         p.parents = {x}
         return p
 
 
-CONTEXT_SIZE = 6
+class GPT(Layer):
+
+    def __init__(self, vocabulary_size, context_size, embedding_size):
+        super().__init__()
+        self.vocabulary_size = vocabulary_size
+        self.context_size = context_size
+        self.embedding_size = embedding_size
+
+        self.embedding = GPTEmbedding(self.vocabulary_size, self.context_size, self.embedding_size)
+        self.attention = GPTAttention(self.embedding_size)
+
+    def forward(self, x: Tensor):
+        x = self.embedding(x)
+        return self.attention(x)
+
+
+class GPTEmbedding(Layer):
+
+    def __init__(self, vocabulary_size, context_size, embedding_size):
+        super().__init__()
+        self.vocabulary_size = vocabulary_size
+        self.context_size = context_size
+        self.embedding_size = embedding_size
+
+        self.token_embedding = Embedding(self.vocabulary_size, self.embedding_size)
+        self.positional_embedding = Embedding(self.context_size, self.embedding_size)
+
+    def forward(self, x: Tensor):
+        token = self.token_embedding(x)
+        position = self.positional_embedding(Tensor(range(self.context_size)))
+        return token + position
+
+
+class GPTAttention(Layer):
+
+    def __init__(self, embedding_size):
+        super().__init__()
+        self.embedding_size = embedding_size
+
+        self.attention_query = Linear(self.embedding_size, self.embedding_size)
+        self.attention_key = Linear(self.embedding_size, self.embedding_size)
+        self.attention_value = Linear(self.embedding_size, self.embedding_size)
+        self.softmax = Softmax()
+
+    def forward(self, x: Tensor):
+        query = self.attention_query(x)
+        key = self.attention_key(x)
+        value = self.attention_value(x)
+
+        scores = query @ key.T
+        weights = self.softmax(scores)
+        return weights @ value
+
+
+CONTEXT_SIZE = 4
+EMBEDDING_SIZE = 3
 
 dataset = DataLoader('../a-day.txt', CONTEXT_SIZE, 1)
 
-token_embedding = Embedding(len(dataset.vocabulary), 4, 0)
-positional_embedding = Embedding(CONTEXT_SIZE, 4, 0)
+model = GPT(len(dataset.vocabulary), CONTEXT_SIZE, EMBEDDING_SIZE)
 
 feature, label = dataset[0]
 
-feature_token = token_embedding(Tensor(feature))
-feature_position = positional_embedding(Tensor(range(CONTEXT_SIZE)))
-feature_embedding = feature_token + feature_position
-print("Embedding: ", feature_embedding.data)
-
-query = Linear(feature_embedding.size(), 2, bias_enabled=False)
-key = Linear(feature_embedding.size(), 2, bias_enabled=False)
-value = Linear(feature_embedding.size(), 2, bias_enabled=False)
-
-query_feature = query(feature_embedding)
-key_feature = key(feature_embedding)
-value_feature = value(feature_embedding)
-
-attention_scores = query_feature @ key_feature.T
-print("Attention scores: ", attention_scores.data)
-
-softmax = Softmax()
-attention_weights = softmax(attention_scores)
-print("Attention weights: ", attention_weights.data)
-print("Attention weight sum: ", attention_weights.data.sum(axis=1))
-
-context_vectors = attention_weights @ value_feature
-print("Context vectors: ", context_vectors.data)
+prediction = model(Tensor(feature))
+print("Context vectors: ", prediction.data)

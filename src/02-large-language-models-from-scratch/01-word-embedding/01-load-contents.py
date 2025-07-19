@@ -15,7 +15,7 @@ class DataLoader:
 
     @staticmethod
     def split_text(text):
-        words = re.split(r'([,.:;?_!"()\']|\s)', text)
+        words = re.split(r'([,.:;?_!"()\']|\s)', text.lower())
         return [t.strip() for t in words if t.strip()]
 
 

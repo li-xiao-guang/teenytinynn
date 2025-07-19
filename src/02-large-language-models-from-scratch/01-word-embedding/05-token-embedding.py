@@ -24,15 +24,33 @@ class DataLoader:
 
         self.features = []
         self.labels = []
-
-        for i in range(0, len(self.tokens) - self.batch_size, self.stride):
-            self.features.append(self.tokens[i: i + self.batch_size])
-            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+        self.train()
 
     @staticmethod
     def split_text(text):
         words = re.split(r'([,.:;?_!"()\']|\s)', text.lower())
         return [t.strip() for t in words if t.strip()]
+
+    def train(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(0, len(self.tokens) * 9 // 10 - self.batch_size, self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def eval(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(len(self.tokens) * 9 // 10 - self.batch_size + 1, len(self.tokens) - self.batch_size,
+                       self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def __len__(self):  # 3
+        return len(self.features)
+
+    def __getitem__(self, index):  # 4
+        return self.features[index], self.labels[index]
 
     def encode(self, text):
         words = self.split_text(text)
@@ -42,12 +60,6 @@ class DataLoader:
     def decode(self, tokens):
         text = " ".join([self.index2word[index] for index in tokens])
         return re.sub(r'\s+([,.:;?_!"()\'])', r'\1', text)
-
-    def __len__(self):  # 3
-        return len(self.features)
-
-    def __getitem__(self, index):  # 4
-        return self.features[index], self.labels[index]
 
 
 class Tensor:
@@ -128,7 +140,7 @@ class Layer(ABC):
 
 class Embedding(Layer):
 
-    def __init__(self, vocabulary_size, embedding_size, axis=1):
+    def __init__(self, vocabulary_size, embedding_size, axis=None):
         super().__init__()
         self.vocabulary_size = vocabulary_size
         self.embedding_size = embedding_size
@@ -137,7 +149,8 @@ class Embedding(Layer):
         self.weight = Tensor(np.random.rand(embedding_size, vocabulary_size) / vocabulary_size)
 
     def forward(self, x: Tensor):
-        p = Tensor(self.weight.data.T[x.data])
+        weights = self.weight.data.T[x.data]
+        p = Tensor(np.sum(weights, axis=self.axis) if self.axis is not None else weights)
 
         def gradient_fn():
             if self.weight.grad is None:
@@ -152,15 +165,43 @@ class Embedding(Layer):
         return [self.weight]
 
 
+class GPT(Layer):
+
+    def __init__(self, vocabulary_size, embedding_size):
+        super().__init__()
+        self.vocabulary_size = vocabulary_size
+        self.embedding_size = embedding_size
+
+        self.embedding = GPTEmbedding(self.vocabulary_size, self.embedding_size)
+
+    def forward(self, x: Tensor):
+        return self.embedding(x)
+
+
+class GPTEmbedding(Layer):
+
+    def __init__(self, vocabulary_size, embedding_size):
+        super().__init__()
+        self.vocabulary_size = vocabulary_size
+        self.embedding_size = embedding_size
+
+        self.token_embedding = Embedding(self.vocabulary_size, self.embedding_size)
+
+    def forward(self, x: Tensor):
+        return self.token_embedding(x)
+
+
 CONTEXT_SIZE = 4
+EMBEDDING_SIZE = 3
 
 dataset = DataLoader('../a-day.txt', CONTEXT_SIZE, 1)
 
-token_embedding = Embedding(len(dataset.vocabulary), 16, 0)
-print("Embedding weight shape: ", token_embedding.weight.shape())
+model = GPT(len(dataset.vocabulary), EMBEDDING_SIZE)
+print("Embedding weight shape: ", model.embedding.token_embedding.weight.shape())
+print("Embedding weight: ", model.embedding.token_embedding.weight.data)
 
 feature, label = dataset[0]
 
-feature_token = token_embedding(Tensor(feature))
-print("Token shape: ", feature_token.shape())
-print("Tokens: ", feature_token.data)
+prediction = model(Tensor(feature))
+print("Token shape: ", prediction.shape())
+print("Tokens: ", prediction.data)

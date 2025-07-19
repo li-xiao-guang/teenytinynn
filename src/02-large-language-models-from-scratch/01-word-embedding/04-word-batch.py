@@ -19,15 +19,33 @@ class DataLoader:
 
         self.features = []
         self.labels = []
-
-        for i in range(0, len(self.tokens) - self.batch_size, self.stride):
-            self.features.append(self.tokens[i: i + self.batch_size])
-            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+        self.train()
 
     @staticmethod
     def split_text(text):
         words = re.split(r'([,.:;?_!"()\']|\s)', text.lower())
         return [t.strip() for t in words if t.strip()]
+
+    def train(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(0, len(self.tokens) * 9 // 10 - self.batch_size, self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def eval(self):
+        self.features.clear()
+        self.labels.clear()
+        for i in range(len(self.tokens) * 9 // 10 - self.batch_size + 1, len(self.tokens) - self.batch_size,
+                       self.stride):
+            self.features.append(self.tokens[i: i + self.batch_size])
+            self.labels.append(self.tokens[i + 1: i + self.batch_size + 1])
+
+    def __len__(self):  # 3
+        return len(self.features)
+
+    def __getitem__(self, index):  # 4
+        return self.features[index], self.labels[index]
 
     def encode(self, text):
         words = self.split_text(text)
@@ -37,12 +55,6 @@ class DataLoader:
     def decode(self, tokens):
         text = " ".join([self.index2word[index] for index in tokens])
         return re.sub(r'\s+([,.:;?_!"()\'])', r'\1', text)
-
-    def __len__(self):  # 3
-        return len(self.features)
-
-    def __getitem__(self, index):  # 4
-        return self.features[index], self.labels[index]
 
 
 dataset = DataLoader('../a-day.txt', 4, 1)
